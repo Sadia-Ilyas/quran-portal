@@ -496,7 +496,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
 ];
 
 export const ACADEMY_SETTINGS: AcademySettings = {
-  name: "Al-Furqan Quran Academy",
+  name: "Umama Quran Academy",
   tagline: "Learn the Quran with certified teachers, anywhere in the world.",
   email: "info@quranacademy.com",
   whatsapp: "+92 300 1234567",

@@ -164,7 +164,7 @@ export function HeaderNavbar({ role }: { role: Role }) {
           <DropdownMenuItem
             onClick={() => {
               logout();
-              navigate("/login");
+              navigate("/");
             }}
           >
             <LogOut className="mr-2 size-4" /> Log out

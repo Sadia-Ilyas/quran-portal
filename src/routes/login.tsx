@@ -50,13 +50,18 @@ function LoginPage() {
   };
 
   return (
-    <div className="hero-gradient flex min-h-screen items-center justify-center px-4 py-10">
+    <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <Link to="/" className="mb-6 flex items-center justify-center gap-3">
-          <div className="brand-gradient flex size-11 items-center justify-center rounded-xl">
+          <img
+            src="/favicon_io/quranlogo-cropped.png"
+            alt="Umama Quran Academy"
+            className="h-20 w-auto object-contain transition-transform duration-200 hover:scale-105"
+          />
+          {/* <div className="brand-gradient flex size-11 items-center justify-center rounded-xl">
             <BookOpenText className="size-5 text-primary-foreground" />
           </div>
-          <span className="text-lg font-semibold">{settings.name}</span>
+          <span className="text-lg font-semibold">{settings.name}</span> */}
         </Link>
 
         <div className="app-card p-6">

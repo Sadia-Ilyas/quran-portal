@@ -72,8 +72,8 @@ export default function App() {
         <AuthProvider>
           <BrowserRouter>
             <Routes>
-    <Route path="/" element={<Page title="Quran Academy — Online Tajweed, Hifz & Qaida Classes"><Index /></Page>} />
-    <Route path="/login" element={<Page title="Sign in — Quran Academy Portal"><Login /></Page>} />
+    {/* <Route path="/" element={<Page title="Quran Academy — Online Tajweed, Hifz & Qaida Classes"><Index /></Page>} /> */}
+    <Route path="/" element={<Page title="Sign in — Quran Academy Portal"><Login /></Page>} />
     <Route path="/admin" element={<AdminLayout />}>
       <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="dashboard" element={<Page title="Admin Overview — Quran Academy Portal"><AdminDashboard /></Page>} />

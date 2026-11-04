@@ -17,7 +17,8 @@ export function SidebarNav({ role, onNavigate }: { role: Role; onNavigate?: () =
           <BookOpenText className="size-5 text-primary-foreground" />
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-sidebar-foreground">{settings.name}</p>
+          {/* <p className="truncate text-sm font-semibold text-sidebar-foreground">{settings.name}</p> */}
+           <p className="truncate text-sm font-semibold text-sidebar-foreground">Umama Quran Academy</p>
           <p className="truncate text-xs capitalize text-muted-foreground">{role} portal</p>
         </div>
       </div>
@@ -46,10 +47,10 @@ export function SidebarNav({ role, onNavigate }: { role: Role; onNavigate?: () =
         })}
       </nav>
 
-      <div className="border-t border-sidebar-border p-4 text-xs text-muted-foreground">
+      {/* <div className="border-t border-sidebar-border p-4 text-xs text-muted-foreground">
         <p className="font-medium text-sidebar-foreground">{settings.tagline}</p>
         <p className="mt-1">v1.0 · mock data mode</p>
-      </div>
+      </div> */}
     </div>
   );
 }
