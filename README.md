@@ -4,7 +4,7 @@ A modern, high-performance Single Page Application (SPA) designed to deliver a s
 
 ---
 
-##  Portal Purpose
+##  Portal Purposee
 The Quran Academy Portal bridges students, teachers, and administrators into a unified digital environment. It streamlines student onboarding, interactive course discovery, live schedule tracking, and academic administration without complex server overhead.
 
 ---
