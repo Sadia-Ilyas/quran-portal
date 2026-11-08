@@ -32,10 +32,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useDashboard } from "@/context/DashboardContext";
 import { DAYS, hasScheduleConflict, localSlotToUtc, slotLocalLabel } from "@/lib/time";
 import type { AgeGroup, Student } from "@/types/dashboard";
+import { useCreateStudentMutation } from "@/features/student";
+import { getApiError } from "@/types/api";
 
 export default AdminStudents;
 
+
 const AGE_GROUPS: AgeGroup[] = ["Kids (5-12)", "Teens (13-17)", "Adults (18+)"];
+
 
 interface FormState {
   name: string;
@@ -75,6 +79,7 @@ function AdminStudents() {
     [students, query, teacherFilter],
   );
   const { page, pageCount, slice, setPage, total } = usePagination(filtered);
+  const [createStudent, { isLoading: creating }] = useCreateStudentMutation();
 
   const openCreate = () => {
     setEditing(null);
@@ -300,8 +305,14 @@ function AdminStudents() {
           </DialogHeader>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
+            {/* <div>
               <Label htmlFor="name">Full name</Label>
+              <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <FieldError message={errors.name} />
+            </div>
+            <div> */}
+             <div>
+              <Label htmlFor="name">First name</Label>
               <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               <FieldError message={errors.name} />
             </div>
@@ -321,22 +332,22 @@ function AdminStudents() {
                 <FieldError message={errors.password} />
               </div>
             )}
-            <div>
+            {/* <div>
               <Label htmlFor="guardian">Guardian name</Label>
               <Input
                 id="guardian"
                 value={form.guardianName}
                 onChange={(e) => setForm({ ...form, guardianName: e.target.value })}
               />
-            </div>
-            <div>
+            </div> */}
+            {/* <div>
               <Label htmlFor="whatsapp">WhatsApp</Label>
               <Input
                 id="whatsapp"
                 value={form.whatsapp}
                 onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
               />
-            </div>
+            </div> */}
             <div>
               <Label htmlFor="country">Country</Label>
               <Input

@@ -80,7 +80,7 @@ export function HeaderNavbar({ role }: { role: Role }) {
     .map((p) => p[0])
     .slice(0, 2)
     .join("");
-
+console.log("USER:", user);
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur-md lg:px-6">
       <Sheet open={open} onOpenChange={setOpen}>
@@ -164,7 +164,7 @@ export function HeaderNavbar({ role }: { role: Role }) {
           <DropdownMenuItem
             onClick={() => {
               logout();
-              navigate("/");
+              navigate("/login");
             }}
           >
             <LogOut className="mr-2 size-4" /> Log out

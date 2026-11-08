@@ -1,65 +1,36 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { Role, User } from "@/types/dashboard";
-import { useDashboard } from "./DashboardContext";
-
-interface AuthValue {
-  user: User | null;
-  ready: boolean;
-  login: (email: string, password: string) => { ok: boolean; user?: User; error?: string };
-  logout: () => void;
-  updateProfile: (patch: Partial<User>) => void;
-  changePassword: (current: string, next: string) => { ok: boolean; error?: string };
-}
-
-const AuthContext = createContext<AuthValue | null>(null);
-const STORAGE_KEY = "qa.auth.userId";
+import { useEffect, type ReactNode } from "react";
+import { useAppDispatch, useAppSelector } from "@/App/hooks";
+import { bootstrapSession, useLoginMutation, useLogoutMutation, useChangePasswordMutation } from "@/features/auth";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { allUsers, updateUser } = useDashboard();
-  const [userId, setUserId] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    setUserId(localStorage.getItem(STORAGE_KEY));
-    setReady(true);
-  }, []);
-
-  const user = useMemo(() => allUsers.find((u) => u.id === userId) ?? null, [allUsers, userId]);
-
-  const value: AuthValue = {
-    user,
-    ready,
-    login: (email, password) => {
-      const found = allUsers.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-      if (!found) return { ok: false, error: "No account found with that email." };
-      if (found.password !== password) return { ok: false, error: "Incorrect password." };
-      localStorage.setItem(STORAGE_KEY, found.id);
-      setUserId(found.id);
-      return { ok: true, user: found };
-    },
-    logout: () => {
-      localStorage.removeItem(STORAGE_KEY);
-      setUserId(null);
-    },
-    updateProfile: (patch) => {
-      if (user) updateUser(user.id, patch);
-    },
-    changePassword: (current, next) => {
-      if (!user) return { ok: false, error: "Not signed in." };
-      if (user.password !== current) return { ok: false, error: "Current password is incorrect." };
-      if (next.length < 6) return { ok: false, error: "New password must be at least 6 characters." };
-      updateUser(user.id, { password: next });
-      return { ok: true };
-    },
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  const dispatch = useAppDispatch();
+  useEffect(() => { bootstrapSession(dispatch); }, [dispatch]);
+  return <>{children}</>;
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
-  return ctx;
+  const { user, status } = useAppSelector((s) => s.auth);
+  const [loginMut] = useLoginMutation();
+  const [logoutMut] = useLogoutMutation();
+  const [changePwMut] = useChangePasswordMutation();
+
+  return {
+    user,
+    ready: status === "authenticated" || status === "unauthenticated",
+    login: async (identifier: string, password: string) => {
+      try {
+        const res = await loginMut({ identifier, password }).unwrap();
+        return { ok: true as const, role: res.user.role.toLowerCase() };
+      } catch {
+        return { ok: false as const, error: "Invalid email/phone or password." };
+      }
+    },
+    logout: () => logoutMut(),
+    changePassword: async (current: string, next: string) => {
+      try { await changePwMut({ old_password: current, new_password: next }).unwrap(); return { ok: true }; }
+      catch { return { ok: false, error: "Could not change password." }; }
+    },
+  };
 }
 
-export type { Role };
+export type { Role } from "@/features/auth";

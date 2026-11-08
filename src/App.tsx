@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { DashboardProvider } from "@/context/DashboardContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
-import Index from "./routes/index";
+// import Index from "./routes/index";
 import Login from "./routes/login";
 import AdminDashboard from "./routes/admin.dashboard";
 import AdminTrialRequests from "./routes/admin.trial-requests";
@@ -73,7 +73,7 @@ export default function App() {
           <BrowserRouter>
             <Routes>
     {/* <Route path="/" element={<Page title="Quran Academy — Online Tajweed, Hifz & Qaida Classes"><Index /></Page>} /> */}
-    <Route path="/" element={<Page title="Sign in — Quran Academy Portal"><Login /></Page>} />
+    <Route path="/login" element={<Page title="Sign in — Quran Academy Portal"><Login /></Page>} />
     <Route path="/admin" element={<AdminLayout />}>
       <Route index element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="dashboard" element={<Page title="Admin Overview — Quran Academy Portal"><AdminDashboard /></Page>} />
