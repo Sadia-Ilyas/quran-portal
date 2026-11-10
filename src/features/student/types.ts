@@ -1,5 +1,5 @@
-export type Gender = 'MALE' | 'FEMALE';                       // check Swagger for other values
-export type StudentLevel = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED'; // ASSUMPTION: check the enum in Swagger
+export type Gender = 'MALE' | 'FEMALE';
+export type StudentLevel = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 
 export interface CreateStudentRequest {
   email: string;
@@ -19,4 +19,7 @@ export interface CreateStudentRequest {
 export interface StudentProfile extends CreateStudentRequest {
   id: string;
   full_name?: string;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }

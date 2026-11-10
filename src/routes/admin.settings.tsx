@@ -28,7 +28,7 @@ function AdminSettings() {
     toast.success("Academy settings saved");
   };
 
-  const savePassword = () => {
+  const savePassword = async () => {
     if (pwd.next.length < 6) {
       toast.error("New password must be at least 6 characters");
       return;
@@ -37,7 +37,7 @@ function AdminSettings() {
       toast.error("Passwords do not match");
       return;
     }
-    const res = changePassword(pwd.current, pwd.next);
+    const res = await changePassword(pwd.current, pwd.next);
     if (!res.ok) {
       toast.error(res.error ?? "Could not update password");
       return;

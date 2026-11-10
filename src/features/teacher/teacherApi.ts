@@ -1,5 +1,6 @@
 import { apiSlice } from '@/services/baseApi';
-import type { Paginated, TeacherProfile, CreateTeacherRequest } from './types';
+import type { Paginated } from '@/types/api';
+import type { TeacherProfile, CreateTeacherRequest } from './types';
 
 export const teacherApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({

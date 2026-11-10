@@ -33,12 +33,12 @@ export function ProfileForm({ extra }: { extra?: ReactNode }) {
     toast.success("Profile updated");
   };
 
-  const savePassword = () => {
+  const savePassword = async () => {
     if (pw.next !== pw.confirm) {
       setErrors({ confirm: "Passwords do not match." });
       return;
     }
-    const res = changePassword(pw.current, pw.next);
+    const res = await changePassword(pw.current, pw.next);
     if (!res.ok) {
       setErrors({ current: res.error ?? "Could not change password." });
       return;

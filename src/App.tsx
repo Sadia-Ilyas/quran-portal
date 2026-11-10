@@ -5,7 +5,6 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { DashboardProvider } from "@/context/DashboardContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
-// import Index from "./routes/index";
 import Login from "./routes/login";
 import AdminDashboard from "./routes/admin.dashboard";
 import AdminTrialRequests from "./routes/admin.trial-requests";
@@ -54,7 +53,7 @@ function NotFound() {
         </p>
         <div className="mt-6">
           <Link
-            to="/"
+            to="/login"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Go home
@@ -72,7 +71,7 @@ export default function App() {
         <AuthProvider>
           <BrowserRouter>
             <Routes>
-    {/* <Route path="/" element={<Page title="Quran Academy — Online Tajweed, Hifz & Qaida Classes"><Index /></Page>} /> */}
+              <Route path="/" element={<Navigate to="/login" replace />} />
     <Route path="/login" element={<Page title="Sign in — Quran Academy Portal"><Login /></Page>} />
     <Route path="/admin" element={<AdminLayout />}>
       <Route index element={<Navigate to="/admin/dashboard" replace />} />

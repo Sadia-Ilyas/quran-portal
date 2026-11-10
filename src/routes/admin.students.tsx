@@ -1,476 +1,299 @@
-
 import { useMemo, useState } from "react";
-import { Pencil, Plus, Trash2, Users } from "lucide-react";
-import { toast } from "sonner";
+import { AlertCircle, Pencil, Plus, RefreshCw, Trash2, Users } from "lucide-react";
+import { format } from "date-fns";
+import type { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import {
   EmptyState,
-  FieldError,
   PageHeader,
   PaginationBar,
-  usePagination,
+  TableSkeleton,
 } from "@/components/dashboard/ui-kit";
+import { AddStudentDialog } from "@/components/dashboard/AddStudentDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useDashboard } from "@/context/DashboardContext";
-import { DAYS, hasScheduleConflict, localSlotToUtc, slotLocalLabel } from "@/lib/time";
-import type { AgeGroup, Student } from "@/types/dashboard";
-import { useCreateStudentMutation } from "@/features/student";
-import { getApiError } from "@/types/api";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useGetStudentsQuery } from "@/features/student";
 
-export default AdminStudents;
+/** Backend returns 10 items per page by default. */
+const PAGE_SIZE = 10;
 
-
-const AGE_GROUPS: AgeGroup[] = ["Kids (5-12)", "Teens (13-17)", "Adults (18+)"];
-
-
-interface FormState {
-  name: string;
-  email: string;
-  password: string;
-  guardianName: string;
-  whatsapp: string;
-  country: string;
-  courseId: string;
-  teacherId: string;
-  ageGroup: AgeGroup;
-  level: string;
-  timezone: string;
-  day: number;
-  time: string;
-  duration: number;
+function formatLevel(level?: string | null) {
+  if (!level) return "—";
+  switch (level.toUpperCase()) {
+    case "BEGINNER":
+      return "Beginner";
+    case "INTERMEDIATE":
+      return "Intermediate";
+    case "ADVANCED":
+      return "Advanced";
+    default:
+      return level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
+  }
 }
 
-function AdminStudents() {
-  const { students, teachers, courses, slots, addStudent, updateStudent, removeStudent } =
-    useDashboard();
+function formatDate(isoDate?: string | null) {
+  if (!isoDate) return "—";
+  try {
+    return format(new Date(isoDate), "MMM d, yyyy");
+  } catch {
+    return isoDate;
+  }
+}
 
+function getStudentLoadError(error: unknown): string {
+  if (!error) return "Cannot reach the server.";
+  if (typeof error === "object" && error !== null) {
+    const err = error as Record<string, unknown>;
+    if (err.status === "FETCH_ERROR") return "Cannot reach the server.";
+    const data = err.data as Record<string, unknown> | undefined;
+    if (data?.detail && typeof data.detail === "string") return data.detail;
+  }
+  return "Cannot reach the server.";
+}
+
+export default function AdminStudents() {
+  const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
-  const [teacherFilter, setTeacherFilter] = useState("all");
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Student | null>(null);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [form, setForm] = useState<FormState>(blank(courses[0]?.id ?? "", teachers[0]?.id ?? ""));
 
-  const filtered = useMemo(
-    () =>
-      students.filter((s) => {
-        const q = query.trim().toLowerCase();
-        const match = !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q);
-        return match && (teacherFilter === "all" || s.teacherId === teacherFilter);
-      }),
-    [students, query, teacherFilter],
-  );
-  const { page, pageCount, slice, setPage, total } = usePagination(filtered);
-  const [createStudent, { isLoading: creating }] = useCreateStudentMutation();
+  const { data, isLoading, isError, error, refetch } = useGetStudentsQuery({ page });
 
-  const openCreate = () => {
-    setEditing(null);
-    setErrors({});
-    setForm(blank(courses[0]?.id ?? "", teachers[0]?.id ?? ""));
-    setOpen(true);
-  };
+  const total = data?.count ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const openEdit = (s: Student) => {
-    setEditing(s);
-    setErrors({});
-    setForm({
-      name: s.name,
-      email: s.email,
-      password: s.password,
-      guardianName: s.guardianName ?? "",
-      whatsapp: s.whatsapp ?? "",
-      country: s.country ?? "",
-      courseId: s.courseId,
-      teacherId: s.teacherId,
-      ageGroup: s.ageGroup,
-      level: s.level,
-      timezone: s.timezone,
-      day: 1,
-      time: "17:00",
-      duration: 45,
+  const filtered = useMemo(() => {
+    const list = data?.results ?? [];
+    const q = query.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((s) => {
+      const name = (s.full_name || `${s.first_name} ${s.last_name}`).toLowerCase();
+      const email = (s.email || "").toLowerCase();
+      const phone = (s.phone_number || "").toLowerCase();
+      return name.includes(q) || email.includes(q) || phone.includes(q);
     });
-    setOpen(true);
-  };
+  }, [data?.results, query]);
 
-  const submit = () => {
-    const next: Record<string, string> = {};
-    if (!form.name.trim()) next.name = "Name is required";
-    if (!/^\S+@\S+\.\S+$/.test(form.email)) next.email = "Valid email required";
-    if (!editing && form.password.length < 6) next.password = "Minimum 6 characters";
-    if (!form.courseId) next.courseId = "Select a course";
-    if (!form.teacherId) next.teacherId = "Select a teacher";
-    setErrors(next);
-    if (Object.keys(next).length) return;
+  const status = (error as FetchBaseQueryError | undefined)?.status;
 
-    if (editing) {
-      updateStudent(editing.id, {
-        name: form.name,
-        email: form.email,
-        guardianName: form.guardianName,
-        whatsapp: form.whatsapp,
-        country: form.country,
-        courseId: form.courseId,
-        teacherId: form.teacherId,
-        ageGroup: form.ageGroup,
-        level: form.level,
-        timezone: form.timezone,
-      });
-      toast.success("Student updated");
-      setOpen(false);
-      return;
-    }
-
-    const utc = localSlotToUtc(form.day, form.time);
-    const conflict = hasScheduleConflict(slots, {
-      teacherId: form.teacherId,
-      dayOfWeek: utc.dayOfWeek,
-      startUtc: utc.startUtc,
-      durationMinutes: form.duration,
-    });
-    if (conflict) {
-      toast.error("That teacher already has a class in this time slot");
-      return;
-    }
-
-    const teacher = teachers.find((t) => t.id === form.teacherId);
-    addStudent(
-      {
-        name: form.name,
-        email: form.email,
-        password: form.password,
-        guardianName: form.guardianName,
-        whatsapp: form.whatsapp,
-        country: form.country,
-        timezone: form.timezone,
-        courseId: form.courseId,
-        teacherId: form.teacherId,
-        ageGroup: form.ageGroup,
-        level: form.level,
-        attendancePercent: 100,
-        currentSurah: "Al-Fatihah",
-        currentPara: "Para 1",
-        joinedAt: new Date().toISOString().slice(0, 10),
-      },
-      [
-        {
-          teacherId: form.teacherId,
-          courseId: form.courseId,
-          dayOfWeek: utc.dayOfWeek,
-          startUtc: utc.startUtc,
-          durationMinutes: form.duration,
-          meetingUrl: teacher?.defaultMeetingUrl ?? "https://meet.google.com/quran-academy",
-        },
-      ],
+  if (isError && status === 403) {
+    return (
+      <div>
+        <PageHeader
+          title="Students"
+          description="Student records, profiles, and academic levels."
+        />
+        <div className="app-card">
+          <EmptyState
+            icon={AlertCircle}
+            title="Access Denied"
+            description="You don't have permission to view students."
+          />
+        </div>
+      </div>
     );
-    toast.success("Student enrolled");
-    setOpen(false);
-  };
+  }
 
   return (
-    <div>
-      <PageHeader
-        title="Students"
-        description="Enrolment records, assigned teachers and weekly slots."
-        action={
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 size-4" /> Add student
-          </Button>
-        }
-      />
+    <TooltipProvider>
+      <div>
+        <PageHeader
+          title="Students"
+          description="Student records, profiles, and academic levels."
+          action={
+            <Button onClick={() => setOpen(true)}>
+              <Plus className="mr-2 size-4" /> Add student
+            </Button>
+          }
+        />
 
-      <div className="app-card">
-        <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row">
-          <Input
-            placeholder="Search by name or email"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="sm:max-w-xs"
+        <div className="app-card">
+          {/* Search bar */}
+          <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row">
+            <Input
+              placeholder="Search this page — name, email or phone"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="sm:max-w-xs"
+            />
+          </div>
+
+          {/* Body states */}
+          {isLoading ? (
+            <TableSkeleton rows={8} />
+          ) : isError ? (
+            <EmptyState
+              icon={AlertCircle}
+              title="Failed to load students"
+              description={getStudentLoadError(error)}
+              action={
+                <Button onClick={() => refetch()} variant="outline">
+                  <RefreshCw className="mr-2 size-4" /> Retry
+                </Button>
+              }
+            />
+          ) : total === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="No students yet"
+              description="Click 'Add student' above to register the first student."
+            />
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="No students found"
+              description={`No students matching "${query}".`}
+              action={
+                <Button variant="outline" size="sm" onClick={() => setQuery("")}>
+                  Clear search
+                </Button>
+              }
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Student</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Age / Gender</TableHead>
+                    <TableHead>Country / Timezone</TableHead>
+                    <TableHead>Level</TableHead>
+                    <TableHead>Guardian</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((s) => {
+                    const ageStr = s.age ? `${s.age} yrs` : null;
+                    const genderStr = s.gender
+                      ? s.gender.charAt(0) + s.gender.slice(1).toLowerCase()
+                      : null;
+                    const ageGender =
+                      [ageStr, genderStr].filter(Boolean).join(" / ") || "—";
+
+                    return (
+                      <TableRow key={s.id}>
+                        <TableCell>
+                          <p className="font-medium">
+                            {s.full_name ||
+                              `${s.first_name} ${s.last_name}`.trim() ||
+                              "—"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{s.email}</p>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {s.phone_number || "—"}
+                        </TableCell>
+                        <TableCell className="text-sm">{ageGender}</TableCell>
+                        <TableCell>
+                          <p className="text-sm">{s.country || "—"}</p>
+                          {s.timezone && (
+                            <p className="text-xs text-muted-foreground">
+                              {s.timezone}
+                            </p>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">
+                            {formatLevel(s.current_level)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {s.guardian_name ? (
+                            <div>
+                              <p className="text-sm font-medium">{s.guardian_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {[s.guardian_relationship, s.guardian_phone]
+                                  .filter(Boolean)
+                                  .join(" · ") || "—"}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={s.is_active ? "secondary" : "outline"}>
+                            {s.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {formatDate(s.created_at)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled
+                                    aria-label="Edit student (coming soon)"
+                                  >
+                                    <Pencil className="size-4 opacity-40" />
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>Coming soon</TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled
+                                  // aria-label="Delete student (coming soon)"
+                                  >
+                                    <Trash2 className="size-4 opacity-40 text-destructive" />
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>Coming soon</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {/* Pagination — only shown when there are records */}
+          <PaginationBar
+            page={page}
+            pageCount={pageCount}
+            total={total}
+            onChange={setPage}
           />
-          <Select value={teacherFilter} onValueChange={setTeacherFilter}>
-            <SelectTrigger className="sm:w-56">
-              <SelectValue placeholder="All teachers" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All teachers</SelectItem>
-              {teachers.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
 
-        {slice.length === 0 ? (
-          <EmptyState
-            icon={Users}
-            title="No students found"
-            description="Try a different search, or enrol a new student."
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Student</TableHead>
-                  <TableHead>Course</TableHead>
-                  <TableHead>Teacher</TableHead>
-                  <TableHead>Schedule</TableHead>
-                  <TableHead>Attendance</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {slice.map((s) => {
-                  const mySlots = slots.filter((sl) => sl.studentId === s.id);
-                  return (
-                    <TableRow key={s.id}>
-                      <TableCell>
-                        <p className="font-medium">{s.name}</p>
-                        <p className="text-xs text-muted-foreground">{s.email}</p>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {courses.find((c) => c.id === s.courseId)?.title ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {teachers.find((t) => t.id === s.teacherId)?.name ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {mySlots.length === 0
-                          ? "No slots"
-                          : mySlots
-                              .map((sl) => {
-                                const l = slotLocalLabel(sl);
-                                return `${l.day.slice(0, 3)} ${l.time}`;
-                              })
-                              .join(", ")}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={s.attendancePercent >= 80 ? "secondary" : "destructive"}>
-                          {s.attendancePercent}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            removeStudent(s.id);
-                            toast.success("Student removed");
-                          }}
-                        >
-                          <Trash2 className="size-4 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-        <PaginationBar page={page} pageCount={pageCount} total={total} onChange={setPage} />
+        <AddStudentDialog
+          open={open}
+          onOpenChange={setOpen}
+          onSuccess={() => setPage(1)}
+        />
       </div>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit student" : "Enrol new student"}</DialogTitle>
-            <DialogDescription>
-              {editing
-                ? "Update profile and assignment details."
-                : "Create login credentials and assign the first weekly slot."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {/* <div>
-              <Label htmlFor="name">Full name</Label>
-              <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              <FieldError message={errors.name} />
-            </div>
-            <div> */}
-             <div>
-              <Label htmlFor="name">First name</Label>
-              <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              <FieldError message={errors.name} />
-            </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              <FieldError message={errors.email} />
-            </div>
-            {!editing && (
-              <div>
-                <Label htmlFor="password">Temporary password</Label>
-                <Input
-                  id="password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                />
-                <FieldError message={errors.password} />
-              </div>
-            )}
-            {/* <div>
-              <Label htmlFor="guardian">Guardian name</Label>
-              <Input
-                id="guardian"
-                value={form.guardianName}
-                onChange={(e) => setForm({ ...form, guardianName: e.target.value })}
-              />
-            </div> */}
-            {/* <div>
-              <Label htmlFor="whatsapp">WhatsApp</Label>
-              <Input
-                id="whatsapp"
-                value={form.whatsapp}
-                onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
-              />
-            </div> */}
-            <div>
-              <Label htmlFor="country">Country</Label>
-              <Input
-                id="country"
-                value={form.country}
-                onChange={(e) => setForm({ ...form, country: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Course</Label>
-              <Select value={form.courseId} onValueChange={(v) => setForm({ ...form, courseId: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select course" />
-                </SelectTrigger>
-                <SelectContent>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError message={errors.courseId} />
-            </div>
-            <div>
-              <Label>Teacher</Label>
-              <Select value={form.teacherId} onValueChange={(v) => setForm({ ...form, teacherId: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select teacher" />
-                </SelectTrigger>
-                <SelectContent>
-                  {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError message={errors.teacherId} />
-            </div>
-            <div>
-              <Label>Age group</Label>
-              <Select
-                value={form.ageGroup}
-                onValueChange={(v) => setForm({ ...form, ageGroup: v as AgeGroup })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {AGE_GROUPS.map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {a}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="level">Level</Label>
-              <Input id="level" value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
-            </div>
-
-            {!editing && (
-              <>
-                <div>
-                  <Label>Class day (your local time)</Label>
-                  <Select
-                    value={String(form.day)}
-                    onValueChange={(v) => setForm({ ...form, day: Number(v) })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DAYS.map((d, i) => (
-                        <SelectItem key={d} value={String(i)}>
-                          {d}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="time">Start time</Label>
-                  <Input
-                    id="time"
-                    type="time"
-                    value={form.time}
-                    onChange={(e) => setForm({ ...form, time: e.target.value })}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={submit}>{editing ? "Save changes" : "Enrol student"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+    </TooltipProvider>
   );
-}
-
-function blank(courseId: string, teacherId: string): FormState {
-  return {
-    name: "",
-    email: "",
-    password: "",
-    guardianName: "",
-    whatsapp: "",
-    country: "",
-    courseId,
-    teacherId,
-    ageGroup: "Kids (5-12)",
-    level: "Beginner",
-    timezone: "Asia/Karachi",
-    day: 1,
-    time: "17:00",
-    duration: 45,
-  };
 }

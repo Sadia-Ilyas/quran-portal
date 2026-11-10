@@ -20,6 +20,9 @@ export interface AuthUser {
   phone?: string;
   role: Role;
   requirePasswordReset: boolean;
+  country?: string;
+  timezone?: string;
+  avatarUrl?: string;
 }
 
 export interface LoginRequest { identifier: string; password: string }

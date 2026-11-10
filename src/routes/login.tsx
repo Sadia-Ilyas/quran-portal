@@ -31,7 +31,7 @@ function LoginPage() {
     if (ready && user) navigate(HOME_ROUTE[user.role]);
   }, [ready, user, navigate]);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(undefined);
     if (!email.trim() || !password) {
@@ -39,10 +39,10 @@ function LoginPage() {
       return;
     }
     setBusy(true);
-    const res = login(email, password);
+    const res = await login(email, password);
     setBusy(false);
     if (!res.ok || !res.user) {
-      setError(res.error);
+      setError(res.error || "Login failed");
       return;
     }
     toast.success(`Welcome back, ${res.user.name}`);
