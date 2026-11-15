@@ -149,7 +149,6 @@ export default function AdminStudents() {
             <EmptyState
               icon={Users}
               title="No students yet"
-              description="Click 'Add student' above to register the first student."
             />
           ) : filtered.length === 0 ? (
             <EmptyState

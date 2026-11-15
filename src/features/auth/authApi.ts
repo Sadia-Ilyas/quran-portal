@@ -1,6 +1,13 @@
 import { apiSlice } from '@/services/baseApi';
 import { setCredentials, loggedOut, setUser } from './authSlice';
-import { toAuthUser, type ApiUser, type LoginRequest, type LoginResponse, type ChangePasswordRequest } from './types';
+import {
+  toAuthUser,
+  type ApiUser,
+  type LoginRequest,
+  type LoginResponse,
+  type ChangePasswordRequest,
+  type UpdateProfileRequest,
+} from './types';
 
 export const authApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
@@ -14,7 +21,9 @@ export const authApi = apiSlice.injectEndpoints({
     logout: builder.mutation<void, void>({
       query: () => ({ url: '/users/logout/', method: 'POST' }),
       async onQueryStarted(_, { dispatch, queryFulfilled }) {
-        try { await queryFulfilled; } finally {
+        try {
+          await queryFulfilled;
+        } finally {
           dispatch(loggedOut());
           dispatch(apiSlice.util.resetApiState()); // clear cached data of the previous user
         }
@@ -27,8 +36,24 @@ export const authApi = apiSlice.injectEndpoints({
       query: () => '/users/me/',
       providesTags: ['User'],
       async onQueryStarted(_, { dispatch, queryFulfilled }) {
-        const { data } = await queryFulfilled;
-        dispatch(setUser(toAuthUser(data)));
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(setUser(toAuthUser(data)));
+        } catch {
+          // handled by caller / bootstrap
+        }
+      },
+    }),
+    updateMe: builder.mutation<ApiUser, UpdateProfileRequest>({
+      query: (body) => ({ url: '/users/me/', method: 'PUT', body }),
+      invalidatesTags: ['User'],
+      async onQueryStarted(_, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(setUser(toAuthUser(data)));
+        } catch {
+          // error handled by caller
+        }
       },
     }),
     changePassword: builder.mutation<{ detail?: string }, ChangePasswordRequest>({
@@ -39,5 +64,11 @@ export const authApi = apiSlice.injectEndpoints({
 });
 
 export const {
-  useLoginMutation, useLogoutMutation, useGetMeQuery, useChangePasswordMutation,
+  useLoginMutation,
+  useLogoutMutation,
+  useRefreshMutation,
+  useGetMeQuery,
+  useLazyGetMeQuery,
+  useUpdateMeMutation,
+  useChangePasswordMutation,
 } = authApi;

@@ -1,137 +1,209 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { FieldError } from "@/components/dashboard/ui-kit";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
-import { localTimezone } from "@/lib/time";
+import { useGetMeQuery } from "@/features/auth";
+import { getFieldErrors } from "@/types/api";
 
 export function ProfileForm({ extra }: { extra?: ReactNode }) {
-  const { user, updateProfile, changePassword } = useAuth();
+  const { user, updateProfile, changePassword, isUpdatingProfile, isChangingPassword } = useAuth();
+  const { data: meData, refetch } = useGetMeQuery();
+
   const [form, setForm] = useState({
-    name: user?.name ?? "",
-    email: user?.email ?? "",
-    phone: user?.phone ?? "",
-    country: user?.country ?? "",
-    timezone: user?.timezone ?? localTimezone(),
-    avatarUrl: user?.avatarUrl ?? "",
+    first_name: user?.firstName ?? meData?.first_name ?? "",
+    last_name: user?.lastName ?? meData?.last_name ?? "",
+    email: user?.email ?? meData?.email ?? "",
+    phone_number: user?.phone ?? meData?.phone_number ?? "",
   });
+
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
+  const [pwErrors, setPwErrors] = useState<Record<string, string>>({});
 
-  if (!user) return null;
+  // Sync state whenever fresh user data from GET /users/me/ arrives
+  useEffect(() => {
+    if (meData) {
+      setForm({
+        first_name: meData.first_name ?? "",
+        last_name: meData.last_name ?? "",
+        email: meData.email ?? "",
+        phone_number: meData.phone_number ?? "",
+      });
+    } else if (user) {
+      setForm((prev) => ({
+        ...prev,
+        first_name: user.firstName ?? prev.first_name,
+        last_name: user.lastName ?? prev.last_name,
+        email: user.email ?? prev.email,
+        phone_number: user.phone ?? prev.phone_number,
+      }));
+    }
+  }, [meData, user]);
 
-  const saveProfile = () => {
-    const next: Record<string, string> = {};
-    if (!form.name.trim()) next.name = "Name is required.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) next.email = "Enter a valid email address.";
-    setErrors(next);
-    if (Object.keys(next).length) return;
-    updateProfile({ ...form, name: form.name.trim(), email: form.email.trim() });
-    toast.success("Profile updated");
+  const saveProfile = async () => {
+    const errs: Record<string, string> = {};
+    if (!form.first_name.trim()) errs.first_name = "First name is required.";
+    if (!form.last_name.trim()) errs.last_name = "Last name is required.";
+    if (!form.phone_number.trim()) {
+      errs.phone_number = "Phone number is required.";
+    }
+
+    setProfileErrors(errs);
+    if (Object.keys(errs).length) return;
+
+    const res = await updateProfile({
+      first_name: form.first_name.trim(),
+      last_name: form.last_name.trim(),
+      phone_number: form.phone_number.trim(),
+    });
+
+    if (!res.ok) {
+      const serverFieldErrors = getFieldErrors(res.rawError);
+      if (Object.keys(serverFieldErrors).length) {
+        setProfileErrors(serverFieldErrors);
+      }
+      toast.error(res.error ?? "Could not update profile.");
+      return;
+    }
+
+    setProfileErrors({});
+    toast.success("Profile updated successfully.");
+    refetch();
   };
 
   const savePassword = async () => {
-    if (pw.next !== pw.confirm) {
-      setErrors({ confirm: "Passwords do not match." });
-      return;
+    const errs: Record<string, string> = {};
+    if (!pw.current) errs.current = "Current password is required.";
+    if (!pw.next) errs.next = "New password is required.";
+    if (!pw.confirm) errs.confirm = "Confirm password is required.";
+
+    if (pw.next && pw.confirm && pw.next !== pw.confirm) {
+      errs.confirm = "Passwords do not match.";
     }
-    const res = await changePassword(pw.current, pw.next);
+
+    setPwErrors(errs);
+    if (Object.keys(errs).length) return;
+
+    const res = await changePassword(pw.current, pw.next, pw.confirm);
     if (!res.ok) {
-      setErrors({ current: res.error ?? "Could not change password." });
+      const serverFieldErrors = getFieldErrors(res.rawError);
+      if (Object.keys(serverFieldErrors).length) {
+        const mapped: Record<string, string> = {};
+        if (serverFieldErrors.old_password) mapped.current = serverFieldErrors.old_password;
+        if (serverFieldErrors.new_password) mapped.next = serverFieldErrors.new_password;
+        if (serverFieldErrors.confirm_new_password) mapped.confirm = serverFieldErrors.confirm_new_password;
+        if (serverFieldErrors.detail) mapped.current = serverFieldErrors.detail;
+        setPwErrors(mapped);
+      }
+      toast.error(res.error ?? "Could not change password.");
       return;
     }
-    setErrors({});
+
+    setPwErrors({});
     setPw({ current: "", next: "", confirm: "" });
-    toast.success("Password changed");
+    toast.success("Password changed successfully.");
   };
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <section className="app-card p-6 lg:col-span-2">
         <h2 className="text-base font-semibold">Personal details</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Update your profile information and contact details.
+        </p>
+
+        {/* Extra fields not supported by backend are commented out per instructions
         <div className="mt-5 flex items-center gap-4">
           <Avatar className="size-16">
-            <AvatarImage src={form.avatarUrl} alt={form.name} />
-            <AvatarFallback>{form.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+            <AvatarImage src={form.avatarUrl} alt={form.first_name} />
+            <AvatarFallback>{form.first_name.slice(0, 2).toUpperCase()}</AvatarFallback>
           </Avatar>
           <div className="flex-1">
             <Label htmlFor="avatar">Avatar URL</Label>
-            <Input
-              id="avatar"
-              value={form.avatarUrl}
-              onChange={(e) => setForm((f) => ({ ...f, avatarUrl: e.target.value }))}
-              placeholder="https://…"
-            />
+            <Input id="avatar" placeholder="https://…" />
           </div>
         </div>
+        */}
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <div>
-            <Label htmlFor="name">Full name</Label>
+            <Label htmlFor="prof_first_name">First name *</Label>
             <Input
-              id="name"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              id="prof_first_name"
+              value={form.first_name}
+              onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))}
+              placeholder="First name"
+              disabled={isUpdatingProfile}
             />
-            <FieldError message={errors.name} />
+            <FieldError message={profileErrors.first_name} />
           </div>
+
           <div>
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="prof_last_name">Last name *</Label>
             <Input
-              id="email"
+              id="prof_last_name"
+              value={form.last_name}
+              onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))}
+              placeholder="Last name"
+              disabled={isUpdatingProfile}
+            />
+            <FieldError message={profileErrors.last_name} />
+          </div>
+
+          <div>
+            <Label htmlFor="prof_email">Email</Label>
+            <Input
+              id="prof_email"
               type="email"
               value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              disabled
+              className="bg-muted text-muted-foreground cursor-not-allowed"
             />
-            <FieldError message={errors.email} />
+            <p className="mt-1 text-xs text-muted-foreground">Email cannot be changed.</p>
           </div>
+
           <div>
-            <Label htmlFor="phone">Phone</Label>
+            <Label htmlFor="prof_phone">Phone number *</Label>
             <Input
-              id="phone"
-              value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              id="prof_phone"
+              value={form.phone_number}
+              onChange={(e) => setForm((f) => ({ ...f, phone_number: e.target.value }))}
+              placeholder="+923001234567"
+              disabled={isUpdatingProfile}
             />
+            <FieldError message={profileErrors.phone_number} />
           </div>
+
+          {/* Extra unsupported fields commented out
           <div>
             <Label htmlFor="country">Country</Label>
-            <Input
-              id="country"
-              value={form.country}
-              onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
-            />
+            <Input id="country" disabled />
           </div>
           <div className="sm:col-span-2">
             <Label htmlFor="tz">Timezone</Label>
-            <div className="flex gap-2">
-              <Input
-                id="tz"
-                value={form.timezone}
-                onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setForm((f) => ({ ...f, timezone: localTimezone() }))}
-              >
-                Detect
-              </Button>
-            </div>
+            <Input id="tz" disabled />
           </div>
+          */}
         </div>
 
         {extra}
 
         <div className="mt-6">
-          <Button onClick={saveProfile}>Save changes</Button>
+          <Button onClick={saveProfile} disabled={isUpdatingProfile}>
+            {isUpdatingProfile ? "Saving..." : "Save changes"}
+          </Button>
         </div>
       </section>
 
       <section className="app-card h-fit p-6">
         <h2 className="text-base font-semibold">Change password</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Ensure your account uses a strong password.
+        </p>
+
         <div className="mt-5 space-y-4">
           <div>
             <Label htmlFor="cur">Current password</Label>
@@ -140,8 +212,10 @@ export function ProfileForm({ extra }: { extra?: ReactNode }) {
               type="password"
               value={pw.current}
               onChange={(e) => setPw((p) => ({ ...p, current: e.target.value }))}
+              disabled={isChangingPassword}
+              placeholder="••••••••"
             />
-            <FieldError message={errors.current} />
+            <FieldError message={pwErrors.current} />
           </div>
           <div>
             <Label htmlFor="new">New password</Label>
@@ -150,7 +224,10 @@ export function ProfileForm({ extra }: { extra?: ReactNode }) {
               type="password"
               value={pw.next}
               onChange={(e) => setPw((p) => ({ ...p, next: e.target.value }))}
+              disabled={isChangingPassword}
+              placeholder="••••••••"
             />
+            <FieldError message={pwErrors.next} />
           </div>
           <div>
             <Label htmlFor="conf">Confirm new password</Label>
@@ -159,11 +236,18 @@ export function ProfileForm({ extra }: { extra?: ReactNode }) {
               type="password"
               value={pw.confirm}
               onChange={(e) => setPw((p) => ({ ...p, confirm: e.target.value }))}
+              disabled={isChangingPassword}
+              placeholder="••••••••"
             />
-            <FieldError message={errors.confirm} />
+            <FieldError message={pwErrors.confirm} />
           </div>
-          <Button variant="outline" onClick={savePassword} className="w-full">
-            Update password
+          <Button
+            variant="outline"
+            onClick={savePassword}
+            className="w-full"
+            disabled={isChangingPassword}
+          >
+            {isChangingPassword ? "Updating..." : "Update password"}
           </Button>
         </div>
       </section>
